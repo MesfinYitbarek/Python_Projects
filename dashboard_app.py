@@ -1,66 +1,60 @@
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
+import requests
+import datetime
 
-# ---------------------------
-# Dashboard Title
-# ---------------------------
-st.set_page_config(page_title="Sales Dashboard", layout="wide")
-st.title("📈 Sales Performance Dashboard")
+# -------------------------------
+# Configuration
+# -------------------------------
+API_KEY = "1ce794bc4590f06cc5de54fc4a820bd0"  # 🔑 Replace with your OpenWeatherMap API key
+BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
-# ---------------------------
-# Load Data
-# ---------------------------
-@st.cache_data
-def load_data():
-    # Sample dataset – you can replace this with your own CSV file
-    data = pd.DataFrame({
-        "Region": ["North", "South", "East", "West"] * 5,
-        "Sales": [200, 150, 300, 250, 220, 170, 310, 270, 210, 160, 320, 280, 230, 180, 330, 290, 240, 190, 340, 300],
-        "Month": ["Jan", "Feb", "Mar", "Apr", "May"] * 4
-    })
-    return data
+st.set_page_config(page_title="🌦️ Weather Dashboard", layout="centered")
 
-data = load_data()
+st.title("🌦️ Real-Time Weather Dashboard")
+st.markdown("Enter a city name below to view the latest weather data.")
 
-# ---------------------------
-# Sidebar Filters
-# ---------------------------
-st.sidebar.header("🔍 Filter Options")
-regions = st.sidebar.multiselect("Select Regions", options=data["Region"].unique(), default=data["Region"].unique())
-months = st.sidebar.multiselect("Select Months", options=data["Month"].unique(), default=data["Month"].unique())
+# -------------------------------
+# Input
+# -------------------------------
+city = st.text_input("🏙️ City Name", placeholder="e.g. Addis Ababa, London, Tokyo")
 
-filtered_data = data.query("Region in @regions and Month in @months")
+# -------------------------------
+# Fetch Weather Data
+# -------------------------------
+def get_weather(city_name):
+    params = {"q": city_name, "appid": API_KEY, "units": "metric"}
+    response = requests.get(BASE_URL, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
 
-# ---------------------------
-# KPI Metrics
-# ---------------------------
-total_sales = filtered_data["Sales"].sum()
-avg_sales = filtered_data["Sales"].mean()
-num_records = len(filtered_data)
+if city:
+    data = get_weather(city)
+    if data:
+        # Extract info
+        name = data["name"]
+        country = data["sys"]["country"]
+        temp = data["main"]["temp"]
+        feels_like = data["main"]["feels_like"]
+        humidity = data["main"]["humidity"]
+        wind = data["wind"]["speed"]
+        description = data["weather"][0]["description"].capitalize()
+        icon = data["weather"][0]["icon"]
 
-col1, col2, col3 = st.columns(3)
-col1.metric("💰 Total Sales", f"${total_sales:,.0f}")
-col2.metric("📊 Average Sale", f"${avg_sales:,.0f}")
-col3.metric("🧾 Records", num_records)
+        # Display
+        st.subheader(f"📍 {name}, {country}")
+        st.image(f"http://openweathermap.org/img/wn/{icon}@2x.png", width=100)
+        st.metric("🌡️ Temperature (°C)", f"{temp:.1f}", delta=None)
+        st.metric("💧 Humidity", f"{humidity}%")
+        st.metric("🌬️ Wind Speed", f"{wind} m/s")
+        st.write(f"**Condition:** {description}")
+        st.write(f"Feels like: {feels_like:.1f}°C")
 
-# ---------------------------
-# Charts
-# ---------------------------
-st.subheader("📉 Sales by Region")
-region_sales = filtered_data.groupby("Region")["Sales"].sum()
-fig, ax = plt.subplots()
-region_sales.plot(kind="bar", ax=ax, color="skyblue")
-st.pyplot(fig)
-
-st.subheader("📆 Sales by Month")
-month_sales = filtered_data.groupby("Month")["Sales"].sum().reindex(["Jan", "Feb", "Mar", "Apr", "May"])
-fig2, ax2 = plt.subplots()
-month_sales.plot(kind="line", ax=ax2, marker="o", color="green")
-st.pyplot(fig2)
-
-# ---------------------------
-# Display Data
-# ---------------------------
-st.subheader("🗂️ Filtered Data")
-st.dataframe(filtered_data)
+        # Timestamp
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.caption(f"Updated on: {now}")
+    else:
+        st.error("❌ City not found or API key invalid. Please check and try again.")
+else:
+    st.info("👆 Enter a city name to view the weather.")
